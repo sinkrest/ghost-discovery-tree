@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ghost Discovery Tree — Opportunity Solution Tree</title>
+<title>Discovery Tree Experiment — Opportunity Solution Tree</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -197,6 +197,57 @@ main {
 .node-chevron:hover { background: var(--bg); }
 .node-chevron.expanded { transform: rotate(90deg); }
 .node-chevron.hidden { visibility: hidden; }
+
+.node-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.node-card:hover .node-actions { opacity: 1; }
+
+.node-action-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: var(--text-secondary);
+  transition: all 0.1s;
+  font-family: var(--font);
+  padding: 0;
+}
+
+.node-action-btn:hover { background: #e5e7eb; color: var(--text); }
+.node-action-btn.delete-btn:hover { background: #fee2e2; color: #ef4444; }
+
+.add-outcome-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 12px;
+  margin-top: 12px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: all 0.15s;
+}
+
+.add-outcome-btn:hover { border-color: var(--outcome); color: var(--outcome); background: #eef2ff; }
 
 .node-badge {
   font-size: 10px;
@@ -562,7 +613,7 @@ main {
 
 <nav>
   <div>
-    <h1><span class="dot"></span> Ghost Discovery Tree</h1>
+    <h1><span class="dot"></span> Discovery Tree Experiment</h1>
     <span class="subtitle">Opportunity Solution Tree — Teresa Torres Framework</span>
   </div>
   <div class="nav-actions">
@@ -935,6 +986,15 @@ function renderNode(node) {
     html += '</div>';
   }
 
+  // Inline action buttons (visible on hover)
+  var childTypes = { outcome: 'opportunity', opportunity: 'solution', solution: 'experiment' };
+  html += '<div class="node-actions">';
+  if (childTypes[node.type]) {
+    html += '<button class="node-action-btn" title="Add ' + childTypes[node.type] + '" onclick="event.stopPropagation(); showAddChild(\'' + node.id + '\', \'' + childTypes[node.type] + '\')">+</button>';
+  }
+  html += '<button class="node-action-btn delete-btn" title="Remove" onclick="event.stopPropagation(); deleteNode(\'' + node.id + '\')">&#215;</button>';
+  html += '</div>';
+
   html += '</div>'; // node-card
 
   // Children
@@ -969,6 +1029,7 @@ function renderTree() {
   for (var i = 0; i < tree.length; i++) {
     html += renderNode(tree[i]);
   }
+  html += '<button class="add-outcome-btn" onclick="addOutcome()">+ Add Outcome</button>';
   container.innerHTML = html;
 
   // Stats
@@ -1010,7 +1071,13 @@ function toggleNode(id) {
 function renderDetailPanel() {
   var pane = document.getElementById('tab-details');
   if (!selectedNodeId) {
-    pane.innerHTML = '<div class="empty-state"><p>Select a node in the tree to view details</p></div>';
+    pane.innerHTML = '<div class="empty-state">' +
+      '<p style="font-weight:600;margin-bottom:8px">How to use</p>' +
+      '<p style="font-size:13px;margin-bottom:6px">Click any node to view and edit details</p>' +
+      '<p style="font-size:13px;margin-bottom:6px">Hover a node for quick <strong>+</strong> (add child) and <strong>x</strong> (remove)</p>' +
+      '<p style="font-size:13px;margin-bottom:6px">Use <strong>Signals</strong> tab to triage incoming product signals</p>' +
+      '<p style="font-size:13px">Use <strong>AI Brief</strong> tab to generate a discovery summary</p>' +
+      '</div>';
     return;
   }
 
@@ -1065,11 +1132,7 @@ function renderDetailPanel() {
     html += '<button class="btn btn-sm" onclick="showAddChild(\'' + node.id + '\', \'' + childTypes[node.type] + '\')">+ Add ' + childTypes[node.type] + '</button>';
   }
 
-  // Don't allow deleting root outcomes
-  var parent = findParent(tree, node.id, null);
-  if (parent || node.type !== 'outcome') {
-    html += '<button class="btn btn-sm btn-danger" onclick="deleteNode(\'' + node.id + '\')">Remove</button>';
-  }
+  html += '<button class="btn btn-sm btn-danger" onclick="deleteNode(\'' + node.id + '\')">Remove</button>';
 
   html += '</div>';
 
@@ -1114,6 +1177,49 @@ function deleteNode(nodeId) {
   if (selectedNodeId === nodeId) selectedNodeId = null;
   saveState();
   render();
+}
+
+function addOutcome() {
+  var overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+
+  var modal = document.createElement('div');
+  modal.className = 'modal';
+  modal.innerHTML =
+    '<h2>Add Outcome</h2>' +
+    '<p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">Outcomes are the top-level goals your product team is trying to achieve.</p>' +
+    '<label>Title</label><input type="text" id="modal-title" placeholder="e.g. Increase creator retention...">' +
+    '<label>Description</label><textarea id="modal-desc" placeholder="What does success look like?"></textarea>' +
+    '<div class="modal-actions">' +
+    '<button class="btn" onclick="this.closest(\'.modal-overlay\').remove()">Cancel</button>' +
+    '<button class="btn btn-primary" id="modal-save">Add Outcome</button>' +
+    '</div>';
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  setTimeout(function() { document.getElementById('modal-title').focus(); }, 50);
+
+  document.getElementById('modal-save').onclick = function() {
+    var title = document.getElementById('modal-title').value.trim();
+    if (!title) return;
+
+    var newNode = {
+      id: 'outcome-' + (nextId++),
+      type: 'outcome',
+      title: title,
+      description: document.getElementById('modal-desc').value.trim(),
+      expanded: true,
+      children: []
+    };
+
+    tree.push(newNode);
+    saveState();
+    selectedNodeId = newNode.id;
+    overlay.remove();
+    render();
+  };
 }
 
 // ── Add child modal ──
